@@ -2,6 +2,7 @@ const https = require('https');
 const path = require('path');
 const fs = require('fs-extra');
 const express = require('express');
+const helmet = require('helmet');
 const formidable = require('formidable');
 
 // private key and certificate files for https encryption on local network
@@ -34,8 +35,8 @@ const defaultHost = '0.0.0.0';
 // default web ports like 443 and 80 won't work with the internal ip address
 
 const app = express();
-app.disable('x-powered-by');
 
+app.use(helmet());
 app.get('/shared-files-list', (req, res, next) => {
     const sharePath = path.join(__dirname, 'share');
     console.log('listing shared files from ' + sharePath);
