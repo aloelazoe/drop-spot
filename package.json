@@ -1,7 +1,7 @@
 {
   "name": "drop-spot",
   "version": "1.0.0",
-  "description": "",
+  "description": "little app for sharing files",
   "main": "main.js",
   "dependencies": {
     "express": "^4.17.1",
@@ -10,8 +10,8 @@
   },
   "devDependencies": {},
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "start": "node main.js"
   },
-  "author": "",
+  "author": "aloelazoe",
   "license": "ISC"
 }
