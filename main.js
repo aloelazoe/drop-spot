@@ -25,7 +25,13 @@ const httpsOptions = {
 };
 
 const defaultPort = 443;
+// when using '0.0.0.0' as a host, the server will be accessible over all interfaces
+// it means it will be visible to other devices on the local network
+// and will be accessible through its ip address on the network
 const defaultHost = '0.0.0.0';
+// to make it invisible to other devices, internal address '127.0.0.1' can be used
+// but make sure to use it with a different port:
+// default web ports like 443 and 80 won't work with the internal ip address
 
 const app = express();
 app.disable('x-powered-by');
@@ -97,7 +103,11 @@ server.on('listening', () => {
 server.on('error', (e) => {
     if (e.code === 'EADDRINUSE') {
         console.log(`address https://${defaultHost}:${defaultPort} already in use`);
-        server.close();
+    } else if (e.code === 'EACCES') {
+        console.log(`can not access port ${defaultPort} on host ${defaultHost}`);
+    } else {
+        console.error(e);
     }
+    server.close();
 });
 server.listen(defaultPort, defaultHost);
