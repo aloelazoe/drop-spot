@@ -1,0 +1,38 @@
+<!DOCTYPE html>
+
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>drop-spot</title>
+    <link rel="stylesheet" type="text/css" href="style/style.css"/>
+    <script src="script/script.js"></script>
+</head>
+
+<body>
+    <div class="container">
+        <div id="uploadsSection" class="section">
+            <label id="sectionTitle">upload:</label>
+            <input id="pickUploads" type="file" style="display: none;" onchange="uploadFiles(event);" multiple>
+            <!-- <label class="bigButton" for="pickUploads">upload files</label> -->
+            <label class="button" id="uploadButton" for="pickUploads">choose files...</label>
+            <div id="uploadsList"></div>
+        </div>
+        <div id="downloadsSection">
+            <div class="separator"></div>
+            <!-- <hr style="margin: 0;"> -->
+            <div class="separator"></div>
+            <div id="downloadsSectionInner" class="section">
+                <label id="sectionTitle">download:</label>
+                <!-- <p class="button">Screenshot 2020-07-02 at 20.30.09.png</p>
+                <p class="button">file-124</p>
+                <p class="button">file-1231c-134-c-134</p>
+                <p class="button">file-31412</p>
+                <p class="button">fi</p> -->
+            </div>
+        </div>
+    </div>
+</body>
+
+</html>
