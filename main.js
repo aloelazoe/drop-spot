@@ -5,6 +5,7 @@ const { spawnSync } = require('child_process');
 const express = require('express');
 const helmet = require('helmet');
 const formidable = require('formidable');
+const qrcode = require('qrcode-terminal');
 
 // private key and certificate files for https encryption on local network
 // can be generated generated using openssl like this:
@@ -103,7 +104,9 @@ const lanIp = getLanIp();
 server.on('listening', () => {
     console.log('hosting drop spot at', `https://${server.address().address}:${server.address().port}`);
     if (lanIp) {
-        console.log('address on local network:', `https://${lanIp}:${server.address().port}`);
+        const addr = `https://${lanIp}:${server.address().port}`;
+        console.log('address on local network:', addr);
+        qrcode.generate(addr);
     }
 });
 server.on('error', (e) => {
