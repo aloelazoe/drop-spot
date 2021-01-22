@@ -1,6 +1,7 @@
 const https = require('https');
 const path = require('path');
 const fs = require('fs-extra');
+const { spawnSync } = require('child_process');
 const express = require('express');
 const helmet = require('helmet');
 const formidable = require('formidable');
@@ -97,9 +98,13 @@ app.use(express.static(path.join(__dirname, 'static')));
 app.use((req, res, next) => { res.redirect(303, '/') });
 
 const server = https.createServer(httpsOptions, app);
+const lanIp = getLanIp();
 
 server.on('listening', () => {
     console.log('hosting drop spot at', `https://${server.address().address}:${server.address().port}`);
+    if (lanIp) {
+        console.log('address on local network:', `https://${lanIp}:${server.address().port}`);
+    }
 });
 server.on('error', (e) => {
     if (e.code === 'EADDRINUSE') {
@@ -112,3 +117,18 @@ server.on('error', (e) => {
     server.close();
 });
 server.listen(port, host);
+
+function getLanIp() {
+    let output;
+    try {
+        output = spawnSync('ifconfig');
+    } catch (err) {
+        console.log("couldn't get ip address on local network. perhaps ifconfig command is not accessible here?");
+        return null;
+    }
+    const stdoutStr = output.stdout? output.stdout.toString('utf8'): '';
+    const ipMatch = stdoutStr.match(/^(?!\s*?inet.*?127\.0\.0\.1.*$)\s*?inet.*?(\d*?\.\d*?\.\d*?\.\d*).*$/m);
+    if (ipMatch && ipMatch[1]) {
+        return(ipMatch[1]);
+    }
+}
