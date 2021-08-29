@@ -1,11 +1,36 @@
+// prevent default express error handler from leaking data
+process.env.NODE_ENV = 'production';
+
 const https = require('https');
 const path = require('path');
 const fs = require('fs-extra');
 const { spawnSync } = require('child_process');
+
 const express = require('express');
 const helmet = require('helmet');
+const bodyParser = require('body-parser');
 const formidable = require('formidable');
 const qrcode = require('qrcode-terminal');
+
+// doc
+// text messages are saved in "~/drop-spot/recieved-messages" directory
+// newest message always has a name "0.txt"
+// older messages get the number in their name increased with every new message
+
+// todo:
+// make sure default error handler doesn't leak data: https://expressjs.com/en/guide/error-handling.html
+// * allow customizing all directories in the config file. figure out how to serve static files from the root but sending files for download from another folder
+// * add a config file
+// * save messages as files in a folder on disk. name them as numbers with '0.txt' always being the latest
+
+const dropSpotDir = path.join(process.env['HOME'], 'drop-spot');
+const paths = {
+    recievedFiles: path.join(dropSpotDir, 'recieved-files'),
+    hostedFiles: path.join(dropSpotDir, 'hosted-files'),
+    recievedMessages: path.join(dropSpotDir, 'recieved-messages'),
+}
+
+Object.values(paths).forEach((p) => { fs.ensureDirSync(p) });
 
 // private key and certificate files for https encryption on local network
 // can be generated generated using openssl like this:
@@ -39,14 +64,20 @@ const host = process.argv[2] || '0.0.0.0';
 const app = express();
 
 app.use(helmet());
+
+// log ip address
+app.use('/\*', (req, res, next) => {
+    console.log(`\n${new Date().toJSON()}: request from ${req.ip}`);
+    next();
+});
+
+// handle downloads
 app.get('/shared-files-list', (req, res, next) => {
-    const sharePath = path.join(__dirname, 'share');
-    console.log('listing shared files from ' + sharePath);
+    console.log('listing shared files from ' + paths.hostedFiles);
     const files = [];
-    fs.ensureDirSync(sharePath);
-    const dir = fs.opendirSync(sharePath);
+    const dir = fs.opendirSync(paths.hostedFiles);
     while (true) {
-        curEnt = dir.readSync();
+        const curEnt = dir.readSync();
         if (!curEnt) break;
         if (curEnt.isFile() && !curEnt.name.startsWith('.')) {
             files.push(curEnt.name);
@@ -55,9 +86,10 @@ app.get('/shared-files-list', (req, res, next) => {
     dir.closeSync();
     res.json(files);
 });
+
 app.get('/download/\*', (req, res, next) => {
     const fileName = path.basename(decodeURI(req.path));
-    const filePath = path.join(__dirname, 'share', fileName);
+    const filePath = path.join(paths.hostedFiles, fileName);
     console.log('sending file for download:', fileName);
     if (fs.stat(filePath, (err) => {
         if (!err) {
@@ -67,34 +99,81 @@ app.get('/download/\*', (req, res, next) => {
         }
     }));
 });
+
+// handle post requests
+// plain text messages
+app.post('/', bodyParser.text(), (req, res, next) => {
+    // console.log('content type: ' + req.get('Content-Type'));
+
+    if (typeof req.body == 'string' && req.body.length > 0) {
+        // shift names of all existing messages by one, to make space
+        // for our latest message which will be called '0'
+        const dir = paths.recievedMessages;
+        fs.readdirSync(dir)
+            .filter(n => /\d+\.txt$/.test(n))
+            .map(n => parseInt(n.split('.')[0]))
+            .sort((a, b) => b-a)
+            .forEach((n) => {
+                fs.renameSync(
+                    path.join(dir, n+'.txt'),
+                    path.join(dir, (n+1)+'.txt')
+                );
+            });
+        fs.writeFileSync(path.join(dir, '0.txt'), req.body, 'utf8');
+
+        console.log(`new text message: ${dir}/0.txt`);
+
+        res.writeHead(200, { 'content-type': 'text/plain; charset=UTF-8'});
+        res.write('💌 your text message was recieved');
+        res.end();
+    } else {
+        next();
+    }
+});
+
+// handle multi-part form data with files
 app.post('/', (req, res, next) => {
-    const uploadsPath = path.join(__dirname, 'uploads');
-    fs.ensureDirSync(uploadsPath);
+    // console.log('is multipart/form-data: ' + req.is('multipart/form-data'));
     const form = new formidable({
-        uploadDir: uploadsPath,
+        uploadDir: paths.recievedFiles,
         multiples: true,
         keepExtensions: true,
     });
-    form.parse(req, function (err, fields, files) {
-        // console.log('files:', files)
-        const filesArr = Array.isArray(files.uploads)? files.uploads: [files.uploads];
-        res.writeHead(200, { 'content-type': 'text/plain; charset=UTF-8'});
-        filesArr.forEach((file) => {
-            // console.log(file);
-            if (file.size < 1) {
-                // todo: remove temp file if it was empty
-                // todo: use a different library that doesn't save files automatically
-                return;
-            }
-            const savePath = path.join(uploadsPath, file.name);
-            fs.renameSync(file.path, savePath);
-            console.log('new file was uploaded:', savePath);
-            res.write('uploaded ' + file.name + '\n');
-        });
-        res.end();
+    form.parse(req, (err, fields, files) => {
+        if (err) {
+            next();
+        }
+        if (Object.keys(files).length > 0) {
+            // console.log('files:', files)
+            const filesArr = Array.isArray(files.uploads)? files.uploads: [files.uploads];
+            res.writeHead(200, { 'content-type': 'text/plain; charset=UTF-8'});
+            filesArr.forEach((file) => {
+                // console.log(file);
+                if (file.size < 1) {
+                    // update formidable, new version has options to handle this
+                    // todo: remove temp file if it was empty
+                    // todo: use a different library that doesn't save files automatically
+                    return;
+                }
+                const savePath = path.join(paths.recievedFiles, file.name);
+                fs.renameSync(file.path, savePath);
+                console.log('new file was uploaded:', savePath);
+                res.write('uploaded ' + file.name + '\n');
+            });
+            res.end();
+        }
     });
 });
+app.post('/', (req, res, next) => {
+    console.log('post request not accetpted');
+    res.writeHead(400, { 'content-type': 'text/plain; charset=UTF-8'});
+    res.write('post request not accetpted');
+    res.end();
+});
+
+// serve static files
 app.use(express.static(path.join(__dirname, 'static')));
+
 // if request wasn't handled, redirect to the main page instead of showing errors
 app.use((req, res, next) => { res.redirect(303, '/') });
 
